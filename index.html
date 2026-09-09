@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -181,7 +180,7 @@ function genId(prefix) {
   return `${prefix}-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
 }
 
-const emptyProgress = () => ({ theory: false, module: false, pyq1: false, pyq2: false, revision: 0, formula: 0, confidence: 0 });
+const emptyProgress = () => ({ theory: false, module: false, pyq: false });
 
 const defaultState = () => ({
   structure: buildStructure(),
@@ -265,7 +264,6 @@ function App() {
     update((prev) => ({ ...prev, progress: { ...prev.progress, [id]: { ...(prev.progress[id] || emptyProgress()), [field]: value } } }));
   };
   const toggleBool = (id, field) => setField(id, field, !getProg(id)[field]);
-  const setMeter = (id, field, val) => setField(id, field, getProg(id)[field] === val ? val - 1 : val);
 
   const toggleAdv = (id) => {
     update((prev) => ({ ...prev, advChecked: { ...prev.advChecked, [id]: !prev.advChecked[id] } }));
@@ -325,7 +323,7 @@ function App() {
       const items = state.structure[k] || [];
       const done = items.filter((it) => {
         const p = state.progress[it.id] || emptyProgress();
-        return p.theory && p.module && p.pyq1 && p.pyq2;
+        return p.theory && p.module && p.pyq;
       }).length;
       perSubject[k] = { done, all: items.length, pct: items.length ? Math.round((done / items.length) * 100) : 0 };
       totalDone += done; totalAll += items.length;
@@ -359,20 +357,6 @@ function App() {
   const monthTitlesFor = (k) => SUBJECTS_DEF[k].months.map((m) => m.title);
   const itemsInMonth = (k, title) => state.structure[k].filter((it) => it.month === title);
 
-  const Meter = ({ id, field, label }) => {
-    const val = getProg(id)[field];
-    return (
-      <div style={styles.meterGroup}>
-        <span style={styles.meterLabel}>{label}</span>
-        <div style={{ display: "flex", gap: 4 }}>
-          {[1, 2, 3].map((n) => (
-            <div key={n} className={`dot ${val >= n ? "filled" : ""}`} onClick={() => setMeter(id, field, n)} />
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   const Pill = ({ id, field, label }) => {
     const on = getProg(id)[field];
     return <button className={`pill ${on ? "on" : ""}`} onClick={() => toggleBool(id, field)}>{label}</button>;
@@ -390,8 +374,6 @@ function App() {
         ::selection { background: #E8C4B8; }
         .pill { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; font-weight: 600; padding: 5px 8px; border-radius: 4px; border: 1.5px solid rgba(27,42,74,0.35); background: #FFFDF6; color: #1B2A4A; cursor: pointer; }
         .pill.on { background: #1B2A4A; border-color: #1B2A4A; color: #FFFDF6; }
-        .dot { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid #B54B3A; cursor: pointer; background: #FFFDF6; }
-        .dot.filled { background: #B54B3A; }
         .icon-btn { background: transparent; border: none; cursor: pointer; font-size: 13px; padding: 4px 6px; opacity: 0.6; }
         .icon-btn:hover { opacity: 1; }
         .edit-input { font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 5px 8px; border: 1.5px solid #1B2A4A; border-radius: 4px; flex: 1; background: #FFFDF6; color: #1B2A4A; }
@@ -437,7 +419,7 @@ function App() {
         <div style={styles.scoreStrip}>
           <div style={styles.scoreBig}>{stats.totalDone}<span style={styles.scoreOf}>/{stats.totalAll}</span></div>
           <div style={{ flex: 1 }}>
-            <div style={styles.scoreLabel}>FULLY REVISED (T+M+PYQ×2) &nbsp;·&nbsp; {stats.pct}%</div>
+            <div style={styles.scoreLabel}>FULLY REVISED (T+M+PYQ) &nbsp;·&nbsp; {stats.pct}%</div>
             <div style={styles.track}><div style={{ ...styles.trackFill, width: `${stats.pct}%` }} /></div>
           </div>
           <button style={{ ...styles.editToggle, ...(editMode ? styles.editToggleActive : {}) }} onClick={() => { setEditMode((e) => !e); cancelEdit(); cancelAdd(); }}>
@@ -457,8 +439,7 @@ function App() {
       </div>
 
       <div style={styles.legend}>
-        <div><b>PYQ1</b> = {subj.pyqA} &nbsp;·&nbsp; <b>PYQ2</b> = {subj.pyqB}</div>
-        <div style={{ marginTop: 2 }}>{subj.note}</div>
+        <div>{subj.note}</div>
       </div>
 
       <div style={styles.sheet}>
@@ -492,16 +473,10 @@ function App() {
                             </>
                           )}
                         </div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                           <Pill id={item.id} field="theory" label="Theory" />
                           <Pill id={item.id} field="module" label="Module 50-60Q" />
-                          <Pill id={item.id} field="pyq1" label="PYQ1" />
-                          <Pill id={item.id} field="pyq2" label="PYQ2" />
-                        </div>
-                        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                          <Meter id={item.id} field="revision" label="Revision" />
-                          <Meter id={item.id} field="formula" label="Formula" />
-                          <Meter id={item.id} field="confidence" label="Confidence" />
+                          <Pill id={item.id} field="pyq" label="PYQ" />
                         </div>
                       </>
                     )}
@@ -627,8 +602,6 @@ const styles = {
   groupTitle: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: "0.1em", color: "#B54B3A", fontWeight: 600, marginBottom: 4, textTransform: "uppercase", borderBottom: "1px dashed rgba(181,75,58,0.35)", paddingBottom: 4 },
   rowIndex: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, opacity: 0.55, flex: "none" },
   rowText: { fontSize: 14, lineHeight: 1.3, fontWeight: 500 },
-  meterGroup: { display: "flex", flexDirection: "column", gap: 4 },
-  meterLabel: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 9.5, opacity: 0.6, letterSpacing: "0.03em" },
   addChapterBtn: { fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, background: "transparent", border: "1px dashed rgba(27,42,74,0.4)", borderRadius: 4, padding: "7px 10px", cursor: "pointer", color: "#1B2A4A", marginTop: 8 },
   addendumWrap: { maxWidth: 720, margin: "18px auto 0", padding: "0 20px" },
   addendumToggle: { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "#FFFDF6", border: "2px dashed #B54B3A", borderRadius: 6, fontFamily: "'IBM Plex Sans', sans-serif", fontSize: 13, fontWeight: 500, color: "#1B2A4A", cursor: "pointer", textAlign: "left" },

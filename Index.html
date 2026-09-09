@@ -418,12 +418,7 @@ function App() {
         )}
 
         <div style={styles.scoreStrip}>
-          <div style={styles.scoreBig}>{stats.totalDone}<span style={styles.scoreOf}>/{stats.totalAll}</span></div>
-          <div style={{ flex: 1 }}>
-            <div style={styles.scoreLabel}>FULLY REVISED (T+M+PYQ) &nbsp;·&nbsp; {stats.pct}%</div>
-            <div style={styles.track}><div style={{ ...styles.trackFill, width: `${stats.pct}%` }} /></div>
-          </div>
-          <button style={{ ...styles.editToggle, ...(editMode ? styles.editToggleActive : {}) }} onClick={() => { setEditMode((e) => !e); cancelEdit(); cancelAdd(); }}>
+          <button style={{ ...styles.editToggle, ...(editMode ? styles.editToggleActive : {}), marginLeft: "auto" }} onClick={() => { setEditMode((e) => !e); cancelEdit(); cancelAdd(); }}>
             {editMode ? "✓ Done" : "✎ Edit"}
           </button>
         </div>
@@ -434,7 +429,6 @@ function App() {
           <button key={k} onClick={() => setActive(k)} style={{ ...styles.tabBtn, ...(active === k ? styles.tabBtnActive : {}) }}>
             <span style={styles.tabCode}>{SUBJECTS_DEF[k].code}</span>
             {SUBJECTS_DEF[k].label}
-            <span style={styles.tabPct}>{stats.perSubject[k].pct}%</span>
           </button>
         ))}
       </div>

@@ -209,6 +209,12 @@ function App() {
 
   const applyingRemote = useRef(false);
   const unsubRef = useRef(null);
+  // true only after the first cloud snapshot for the current code has been received.
+  // Until then this device must NEVER write to the cloud (prevents a fresh/empty
+  // device from overwriting real progress).
+  const cloudReady = useRef(false);
+  const stateRef = useRef(null);
+  stateRef.current = state;
 
   // ---- initial local load (fallback / pre-sync state) --------------------
   useEffect(() => {
@@ -224,20 +230,25 @@ function App() {
   // ---- attach/detach Firestore listener when syncCode changes ------------
   useEffect(() => {
     if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
+    cloudReady.current = false;
     if (!FIREBASE_READY || !syncCode) { setSyncStatus(syncCode ? "error" : "local"); return; }
     setSyncStatus("connecting");
     const ref = db.collection("jee-trackers").doc(syncCode);
     unsubRef.current = ref.onSnapshot(
+      { includeMetadataChanges: false },
       (snap) => {
-        if (snap.exists) {
+        // ignore echoes of our own not-yet-confirmed writes
+        if (snap.metadata.hasPendingWrites) return;
+        if (snap.exists && snap.data().payload) {
+          // Existing code: ALWAYS adopt what is in the cloud first.
           applyingRemote.current = true;
           setState(snap.data().payload);
-          setSyncStatus("synced");
-        } else {
-          // seed the cloud doc with current local state
-          ref.set({ payload: state || defaultState(), updatedAt: Date.now() });
-          setSyncStatus("synced");
+        } else if (!snap.exists) {
+          // Brand-new code: seed the cloud with this device's current data.
+          ref.set({ payload: stateRef.current || defaultState(), updatedAt: Date.now() });
         }
+        cloudReady.current = true;
+        setSyncStatus("synced");
       },
       (err) => { console.error(err); setSyncStatus("error"); }
     );
@@ -250,7 +261,7 @@ function App() {
     if (!loaded || !state) return;
     try { localStorage.setItem("jee-dropper-state", JSON.stringify(state)); } catch (e) {}
     if (applyingRemote.current) { applyingRemote.current = false; return; }
-    if (FIREBASE_READY && syncCode && db) {
+    if (FIREBASE_READY && syncCode && db && cloudReady.current) {
       db.collection("jee-trackers").doc(syncCode)
         .set({ payload: state, updatedAt: Date.now() })
         .catch((e) => { console.error(e); setSyncStatus("error"); });
@@ -271,7 +282,38 @@ function App() {
   };
 
   const resetAll = () => {
+    if (!window.confirm("Reset ALL progress? If sync is on, this clears it on every linked device too. Tip: tap Backup first.")) return;
     update((prev) => ({ ...prev, progress: {}, advChecked: {} }));
+  };
+
+  // ---- backup / restore (saves progress to a file you keep) -----------------
+  const exportBackup = () => {
+    const blob = new Blob([JSON.stringify({ app: "jee-tracker", version: 1, savedAt: new Date().toISOString(), data: state }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `jee-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const importBackup = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const data = parsed && parsed.data;
+        if (!data || !data.structure || !data.progress) throw new Error("bad file");
+        if (!window.confirm("Replace the current progress with this backup?")) return;
+        update(() => data);
+      } catch (err) {
+        window.alert("That doesn't look like a valid JEE tracker backup file.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   const startEdit = (item) => { setEditingId(item.id); setEditingValue(item.name); };
@@ -563,7 +605,14 @@ function App() {
       </div>
 
       <div style={styles.footer}>
-        <button style={styles.resetBtn} onClick={resetAll}>Reset all progress</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button style={styles.resetBtn} onClick={exportBackup}>⬇ Backup</button>
+          <label style={{ ...styles.resetBtn, display: "inline-block" }}>
+            ⬆ Restore
+            <input type="file" accept="application/json,.json" onChange={importBackup} style={{ display: "none" }} />
+          </label>
+          <button style={styles.resetBtn} onClick={resetAll}>Reset all progress</button>
+        </div>
         <span style={styles.footerNote}>Month-wise plan per MathonGo's IIT JEE 2027 Dropper Syllabus Tracker. Tap ✎ Edit to add, rename, or remove chapters. Set up 🔗 Sync to share progress across devices.</span>
       </div>
     </div>
